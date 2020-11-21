@@ -15,7 +15,7 @@
 
 ./models/MILoss.py: calculate MI loss
 
-./models/Res3D.py: resnet (decode inouot voxels)
+./models/Res3D.py: resnet (decode input voxels)
 
 ./models/MIFC.py: mutual information fully connected layer
 
