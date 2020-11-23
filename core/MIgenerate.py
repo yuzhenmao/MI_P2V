@@ -91,20 +91,20 @@ def MI_train_net(cfg):
                                           lr=0.00001,
                                           betas=cfg.TRAIN.BETAS)
         trans_decoder_solver = torch.optim.Adam(filter(lambda p: p.requires_grad, trans_decoder.parameters()),
-                                          lr=0.0025,
+                                          lr=0.01,
                                           betas=cfg.TRAIN.BETAS)
         fc_solver = torch.optim.Adam(filter(lambda p: p.requires_grad, fc.parameters()),
-                                          lr=0.0025,
+                                          lr=0.01,
                                           betas=cfg.TRAIN.BETAS)
     elif cfg.TRAIN.POLICY == 'sgd':
         encoder_solver = torch.optim.SGD(filter(lambda p: p.requires_grad, encoder.parameters()),
                                          lr=0.00001,
                                          momentum=cfg.TRAIN.MOMENTUM)
         trans_decoder_solver = torch.optim.SGD(trans_decoder.parameters(),
-                                         lr=0.0025,
+                                         lr=0.01,
                                          momentum=cfg.TRAIN.MOMENTUM)
         fc_solver = torch.optim.SGD(fc.parameters(),
-                                         lr=0.0025,
+                                         lr=0.01,
                                          momentum=cfg.TRAIN.MOMENTUM)
     else:
         raise Exception('[FATAL] %s Unknown optimizer %s.' % (dt.now(), cfg.TRAIN.POLICY))
