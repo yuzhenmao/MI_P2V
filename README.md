@@ -55,3 +55,7 @@ To test original Pix2Vox, you can use the following command:
 ```
 python3 runner.py --test --weights=/path/to/pretrained/model.pth
 ```
+To generate, you can use the following command:
+```
+python3 runner.py --gen --mi_weights=output/checkpoints/2020-11-24T21:48:25.507368/plane_mitrain_checkpoint-best.pth --weights=output/checkpoints/2020-11-24T07:38:31.125174/plane_checkpoint-best.pth
+```
