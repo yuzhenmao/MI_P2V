@@ -31,7 +31,7 @@ class Trans_Decoder(torch.nn.Module):
 
 
     def forward(self, voxal_features):
-        resnet3d = generate_model(18).cuda()
+        resnet3d = generate_model(34).cuda()
         voxal_features = voxal_features.contiguous()
 
         voxal_features = voxal_features[np.newaxis, :]

@@ -20,6 +20,7 @@ from core.test import test_net
 from core.predict import predict_net
 from core.MIgenerate import MI_train_net
 from core.mi_train import mi_train_net
+from core.generator import gen_net
 
 
 def get_args_from_command_line():
@@ -41,6 +42,7 @@ def get_args_from_command_line():
     parser.add_argument('--mi_weights', dest='mi_weights', help='Initialize network from the mutual information weights file', default=None)
     parser.add_argument('--out', dest='out_path', help='Set output path', default=cfg.DIR.OUT_PATH)
     parser.add_argument('--pred', dest='pred', help='predict neural networks', action='store_true')
+    parser.add_argument('--gen', dest='gen', help='generate results', action='store_true')
     parser.add_argument('--mcmi', dest='mcmi', help='use mutual information', action='store_true')
     parser.add_argument('--mitrain', dest='mitrain', help='use mutual information', action='store_true')
     parser.add_argument('--img', dest='img', help='input img', default=None)
@@ -81,12 +83,14 @@ def main():
 
     # Start train/test process
     if not args.test:
-        if not args.pred and not args.mcmi and not args.mitrain:
+        if not args.pred and not args.mcmi and not args.mitrain and not args.gen:
             train_net(cfg)
         elif args.mcmi:
             MI_train_net(cfg)
         elif args.mitrain:
             mi_train_net(cfg)
+        elif args.gen:
+            gen_net(cfg)
         else:
             if 'WEIGHTS' in cfg.CONST and os.path.exists(cfg.CONST.WEIGHTS):
                 predict_net(cfg, args.img)
@@ -107,4 +111,3 @@ if __name__ == '__main__':
 
     logging.basicConfig(format='[%(levelname)s] %(asctime)s %(message)s', level=logging.DEBUG)
     main()
-

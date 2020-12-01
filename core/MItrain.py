@@ -12,7 +12,6 @@ import torch.utils.data
 import utils.data_loaders
 import utils.data_transforms
 import utils.helpers
-import utils.plane_loaders
 
 from datetime import datetime as dt
 from tensorboardX import SummaryWriter
@@ -24,10 +23,6 @@ from models.decoder import Decoder
 from models.refiner import Refiner
 from models.merger import Merger
 from utils.average_meter import AverageMeter
-
-import matplotlib
-import matplotlib.pyplot as plt
-import numpy as np
 
 
 def train_net(cfg):
@@ -55,17 +50,17 @@ def train_net(cfg):
     ])
 
     # Set up data loader
-    train_dataset_loader = utils.plane_loaders.DATASET_LOADER_MAPPING[cfg.DATASET.TRAIN_DATASET](cfg)
-    val_dataset_loader = utils.plane_loaders.DATASET_LOADER_MAPPING[cfg.DATASET.TEST_DATASET](cfg)
+    train_dataset_loader = utils.data_loaders.DATASET_LOADER_MAPPING[cfg.DATASET.TRAIN_DATASET](cfg)
+    val_dataset_loader = utils.data_loaders.DATASET_LOADER_MAPPING[cfg.DATASET.TEST_DATASET](cfg)
     train_data_loader = torch.utils.data.DataLoader(dataset=train_dataset_loader.get_dataset(
-        utils.plane_loaders.DatasetType.TRAIN, cfg.CONST.N_VIEWS_RENDERING, train_transforms),
+        utils.data_loaders.DatasetType.TRAIN, cfg.CONST.N_VIEWS_RENDERING, train_transforms),
                                                     batch_size=cfg.CONST.BATCH_SIZE,
                                                     num_workers=cfg.CONST.NUM_WORKER,
                                                     pin_memory=True,
                                                     shuffle=True,
                                                     drop_last=True)
     val_data_loader = torch.utils.data.DataLoader(dataset=val_dataset_loader.get_dataset(
-        utils.plane_loaders.DatasetType.VAL, cfg.CONST.N_VIEWS_RENDERING, val_transforms),
+        utils.data_loaders.DatasetType.VAL, cfg.CONST.N_VIEWS_RENDERING, val_transforms),
                                                   batch_size=1,
                                                   num_workers=cfg.CONST.NUM_WORKER,
                                                   pin_memory=True,
@@ -166,12 +161,8 @@ def train_net(cfg):
     train_writer = SummaryWriter(os.path.join(cfg.DIR.LOGS, 'train'))
     val_writer = SummaryWriter(os.path.join(cfg.DIR.LOGS, 'test'))
 
-    
-    enc_train_loss_over_epochs = []
-    ref_train_loss_over_epochs = []
-
     # Training loop
-    for epoch_idx in range(init_epoch, 150):
+    for epoch_idx in range(init_epoch, cfg.TRAIN.NUM_EPOCHS):
         # Tick / tock
         epoch_start_time = time()
 
@@ -226,6 +217,8 @@ def train_net(cfg):
             else:
                 encoder_loss.backward()
 
+            print(rendering_images.grad)
+
             encoder_solver.step()
             decoder_solver.step()
             refiner_solver.step()
@@ -244,7 +237,7 @@ def train_net(cfg):
             batch_end_time = time()
             logging.info(
                 '[Epoch %d/%d][Batch %d/%d] BatchTime = %.3f (s) DataTime = %.3f (s) EDLoss = %.4f RLoss = %.4f' %
-                (epoch_idx + 1, 150, batch_idx + 1, n_batches, batch_time.val, data_time.val,
+                (epoch_idx + 1, cfg.TRAIN.NUM_EPOCHS, batch_idx + 1, n_batches, batch_time.val, data_time.val,
                  encoder_loss.item(), refiner_loss.item()))
 
         # Adjust learning rate
@@ -253,9 +246,6 @@ def train_net(cfg):
         refiner_lr_scheduler.step()
         merger_lr_scheduler.step()
 
-        enc_train_loss_over_epochs.append(encoder_losses.avg)
-        ref_train_loss_over_epochs.append(refiner_losses.avg)
-
         # Append epoch loss to TensorBoard
         train_writer.add_scalar('EncoderDecoder/EpochLoss', encoder_losses.avg, epoch_idx + 1)
         train_writer.add_scalar('Refiner/EpochLoss', refiner_losses.avg, epoch_idx + 1)
@@ -263,7 +253,7 @@ def train_net(cfg):
         # Tick / tock
         epoch_end_time = time()
         logging.info('[Epoch %d/%d] EpochTime = %.3f (s) EDLoss = %.4f RLoss = %.4f' %
-                     (epoch_idx + 1, 150, epoch_end_time - epoch_start_time, encoder_losses.avg,
+                     (epoch_idx + 1, cfg.TRAIN.NUM_EPOCHS, epoch_end_time - epoch_start_time, encoder_losses.avg,
                       refiner_losses.avg))
 
         # Update Rendering Views
@@ -271,18 +261,18 @@ def train_net(cfg):
             n_views_rendering = random.randint(1, cfg.CONST.N_VIEWS_RENDERING)
             train_data_loader.dataset.set_n_views_rendering(n_views_rendering)
             logging.info('Epoch [%d/%d] Update #RenderingViews to %d' %
-                         (epoch_idx + 2, 150, n_views_rendering))
+                         (epoch_idx + 2, cfg.TRAIN.NUM_EPOCHS, n_views_rendering))
 
         # Validate the training models
         iou = test_net(cfg, epoch_idx + 1, val_data_loader, val_writer, encoder, decoder, refiner, merger)
 
         # Save weights to file
         if (epoch_idx + 1) % cfg.TRAIN.SAVE_FREQ == 0 or iou > best_iou:
-            file_name = 'plane_checkpoint-epoch-%03d.pth' % (epoch_idx + 1)
+            file_name = 'checkpoint-epoch-%03d.pth' % (epoch_idx + 1)
             if iou > best_iou:
                 best_iou = iou
                 best_epoch = epoch_idx
-                file_name = 'plane_checkpoint-best.pth'
+                file_name = 'checkpoint-best.pth'
 
             output_path = os.path.join(cfg.DIR.CHECKPOINTS, file_name)
             if not os.path.exists(cfg.DIR.CHECKPOINTS):
@@ -290,7 +280,7 @@ def train_net(cfg):
 
             checkpoint = {
                 'epoch_idx': epoch_idx,
-                'best_iou': best_iou,   
+                'best_iou': best_iou,
                 'best_epoch': best_epoch,
                 'encoder_state_dict': encoder.state_dict(),
                 'decoder_state_dict': decoder.state_dict(),
@@ -306,14 +296,3 @@ def train_net(cfg):
     # Close SummaryWriter for TensorBoard
     train_writer.close()
     val_writer.close()
-
-    plt.ioff()
-    fig = plt.figure()
-
-    plt.ylabel('Train loss')
-    plt.plot(np.arange(150), enc_train_loss_over_epochs, 'b-', np.arange(150), ref_train_loss_over_epochs, 'r-')
-    plt.xlabel('Epochs')
-    plt.xticks(np.arange(150, dtype=int, step=10))
-    plt.grid(True)
-    plt.savefig("train_plot.png")
-    plt.close(fig)

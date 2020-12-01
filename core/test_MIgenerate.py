@@ -12,7 +12,6 @@ import torch.utils.data
 import utils.data_loaders
 import utils.data_transforms
 import utils.helpers
-import utils.plane_loaders
 
 from datetime import datetime as dt
 from tensorboardX import SummaryWriter
@@ -28,50 +27,38 @@ from utils.average_meter import AverageMeter
 import numpy as np
 import pdb
 
-import matplotlib
-import matplotlib.pyplot as plt
 
-
-def MI_train_net(cfg):
+def test_MI_train_net(cfg,
+             img,
+             vox,
+             epoch_idx=-1,
+             test_data_loader=None,
+             encoder=None,
+             decoder=None,
+             refiner=None,
+             merger=None):
     # Enable the inbuilt cudnn auto-tuner to find the best algorithm to use
     torch.backends.cudnn.benchmark = True
 
-    # Set up data augmentation
     IMG_SIZE = cfg.CONST.IMG_H, cfg.CONST.IMG_W
     CROP_SIZE = cfg.CONST.CROP_IMG_H, cfg.CONST.CROP_IMG_W
-    train_transforms = utils.data_transforms.Compose([
-        utils.data_transforms.RandomCrop(IMG_SIZE, CROP_SIZE),
-        utils.data_transforms.RandomBackground(cfg.TRAIN.RANDOM_BG_COLOR_RANGE),
-        utils.data_transforms.ColorJitter(cfg.TRAIN.BRIGHTNESS, cfg.TRAIN.CONTRAST, cfg.TRAIN.SATURATION),
-        utils.data_transforms.RandomNoise(cfg.TRAIN.NOISE_STD),
-        utils.data_transforms.Normalize(mean=cfg.DATASET.MEAN, std=cfg.DATASET.STD),
-        utils.data_transforms.RandomFlip(),
-        utils.data_transforms.RandomPermuteRGB(),
-        utils.data_transforms.ToTensor(),
-    ])
-    val_transforms = utils.data_transforms.Compose([
+    trans = utils.data_transforms.Compose(
+    [
         utils.data_transforms.CenterCrop(IMG_SIZE, CROP_SIZE),
         utils.data_transforms.RandomBackground(cfg.TEST.RANDOM_BG_COLOR_RANGE),
         utils.data_transforms.Normalize(mean=cfg.DATASET.MEAN, std=cfg.DATASET.STD),
         utils.data_transforms.ToTensor(),
     ])
+    
+    rendering_images = []
+    rendering_image = cv2.imread(img, cv2.IMREAD_UNCHANGED).astype(np.float32) / 255.
+    rendering_images.append(rendering_image)
+    rendering_images = np.asarray(rendering_images)
+    rendering_images = trans(rendering_images)
+    rendering_images = rendering_images[np.newaxis, :]
 
-    # Set up data loader
-    train_dataset_loader = utils.plane_loaders.DATASET_LOADER_MAPPING[cfg.DATASET.TRAIN_DATASET](cfg)
-    val_dataset_loader = utils.plane_loaders.DATASET_LOADER_MAPPING[cfg.DATASET.TEST_DATASET](cfg)
-    train_data_loader = torch.utils.data.DataLoader(dataset=train_dataset_loader.get_dataset(
-        utils.plane_loaders.DatasetType.TRAIN, cfg.CONST.N_VIEWS_RENDERING, train_transforms),
-                                                    batch_size=cfg.CONST.BATCH_SIZE,
-                                                    num_workers=cfg.CONST.NUM_WORKER,
-                                                    pin_memory=True,
-                                                    shuffle=True,
-                                                    drop_last=True)
-    val_data_loader = torch.utils.data.DataLoader(dataset=val_dataset_loader.get_dataset(
-        utils.plane_loaders.DatasetType.VAL, cfg.CONST.N_VIEWS_RENDERING, val_transforms),
-                                                  batch_size=1,
-                                                  num_workers=cfg.CONST.NUM_WORKER,
-                                                  pin_memory=True,
-                                                  shuffle=False)
+    ground_truth_volumes = []
+    
 
     # Set up networks
     encoder = Encoder(cfg)
@@ -89,37 +76,37 @@ def MI_train_net(cfg):
     # Set up solver
     if cfg.TRAIN.POLICY == 'adam':
         encoder_solver = torch.optim.Adam(filter(lambda p: p.requires_grad, encoder.parameters()),
-                                          lr=1e-2,
+                                          lr=cfg.TRAIN.ENCODER_LEARNING_RATE,
                                           betas=cfg.TRAIN.BETAS)
         trans_decoder_solver = torch.optim.Adam(filter(lambda p: p.requires_grad, trans_decoder.parameters()),
-                                          lr=1e-2,
+                                          lr=cfg.TRAIN.DECODER_LEARNING_RATE,
                                           betas=cfg.TRAIN.BETAS)
         fc_solver = torch.optim.Adam(filter(lambda p: p.requires_grad, fc.parameters()),
-                                          lr=1e-2,
+                                          lr=cfg.TRAIN.FC_LEARNING_RATE,
                                           betas=cfg.TRAIN.BETAS)
     elif cfg.TRAIN.POLICY == 'sgd':
         encoder_solver = torch.optim.SGD(filter(lambda p: p.requires_grad, encoder.parameters()),
-                                         lr=1e-2,
+                                         lr=cfg.TRAIN.ENCODER_LEARNING_RATE,
                                          momentum=cfg.TRAIN.MOMENTUM)
         trans_decoder_solver = torch.optim.SGD(trans_decoder.parameters(),
-                                         lr=1e-2,
+                                         lr=cfg.TRAIN.DECODER_LEARNING_RATE,
                                          momentum=cfg.TRAIN.MOMENTUM)
         fc_solver = torch.optim.SGD(fc.parameters(),
-                                         lr=1e-2,
+                                         lr=cfg.TRAIN.FC_LEARNING_RATE,
                                          momentum=cfg.TRAIN.MOMENTUM)
     else:
         raise Exception('[FATAL] %s Unknown optimizer %s.' % (dt.now(), cfg.TRAIN.POLICY))
 
     # Set up learning rate scheduler to decay learning rates dynamically
     encoder_lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(encoder_solver,
-                                                                milestones=[20, 40, 60, 80],
-                                                                gamma=0.5)
+                                                                milestones=cfg.TRAIN.ENCODER_LR_MILESTONES,
+                                                                gamma=cfg.TRAIN.GAMMA)
     trans_decoder_lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(trans_decoder_solver,
-                                                                milestones=[20, 40, 60, 80],
-                                                                gamma=0.5)
+                                                                milestones=cfg.TRAIN.DECODER_LR_MILESTONES,
+                                                                gamma=cfg.TRAIN.GAMMA)
     fc_lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(fc_solver,
-                                                                milestones=[20, 40, 60, 80],
-                                                                gamma=0.5)
+                                                                milestones=cfg.TRAIN.FC_LR_MILESTONES,
+                                                                gamma=cfg.TRAIN.GAMMA)
     if torch.cuda.is_available():
         encoder = torch.nn.DataParallel(encoder).cuda()
         trans_decoder = torch.nn.DataParallel(trans_decoder).cuda()
@@ -137,21 +124,17 @@ def MI_train_net(cfg):
         logging.info('Recovering from %s ...' % (cfg.CONST.WEIGHTS))
         checkpoint = torch.load(cfg.CONST.WEIGHTS)
         init_epoch = checkpoint['epoch_idx']
+        best_iou = checkpoint['best_iou']
+        best_epoch = checkpoint['best_epoch']
 
         encoder.load_state_dict(checkpoint['encoder_state_dict'])
-        trans_decoder.load_state_dict(checkpoint['trans_decoder_state_dict'])
-        fc.load_state_dict(checkpoint['fc_state_dict'])
         # decoder.load_state_dict(checkpoint['decoder_state_dict'])
 
         logging.info('Recover complete. Current epoch #%d, Best IoU = %.4f at epoch #%d.' %
                      (init_epoch, best_iou, best_epoch))
-    
-    plt.ioff()
-    fig = plt.figure()
-    train_loss_over_epochs = []
 
     # Training loop
-    for epoch_idx in range(init_epoch, 100):
+    for epoch_idx in range(init_epoch, 500):
         # Tick / tock
         epoch_start_time = time()
 
@@ -187,6 +170,9 @@ def MI_train_net(cfg):
             # np.save('test.npy', data)
 
             # Get Loss
+            # image_vectors = image_features.view(-1, 256 * 7 * 7)
+            # voxal_vectors = voxal_features.view(-1, 256 * 7 * 7)
+            # target = torch.Tensor(1).cuda()
             loss = mi_loss(image_vectors, voxal_vectors)
 
             # Gradient decent
@@ -197,8 +183,7 @@ def MI_train_net(cfg):
             loss.backward()
             # print(rendering_images.grad)
             # print(ground_truth_volumes.grad)
-            # if epoch_idx > 169:
-            #     encoder_solver.step()
+
             encoder_solver.step()
             trans_decoder_solver.step()
             fc_solver.step()
@@ -210,47 +195,42 @@ def MI_train_net(cfg):
             batch_time.update(time() - batch_end_time)
             batch_end_time = time()
             logging.info(
-                '[Epoch %d/%d][Batch %d/%d] BatchTime = %.3f (s) DataTime = %.3f (s) -Loss = %.4f lr = %f' %
-                (epoch_idx + 1, 100, batch_idx + 1, n_batches, batch_time.val, data_time.val,
-                 -1*loss.item(), trans_decoder_lr_scheduler.state_dict()['_last_lr'][0]))
+                '[Epoch %d/%d][Batch %d/%d] BatchTime = %.3f (s) DataTime = %.3f (s) Loss = %.4f' %
+                (epoch_idx + 1, 500, batch_idx + 1, n_batches, batch_time.val, data_time.val,
+                 loss.item()))
 
         # Adjust learning rate
         encoder_lr_scheduler.step()
         trans_decoder_lr_scheduler.step()
         fc_lr_scheduler.step()
 
-        train_loss_over_epochs.append(-1*losses.avg)
-
         # Tick / tock
         epoch_end_time = time()
-        logging.info('[Epoch %d/%d] EpochTime = %.3f (s) -Loss = %.4f' %
-                     (epoch_idx + 1, 100, epoch_end_time - epoch_start_time, -1*losses.avg))
+        logging.info('[Epoch %d/%d] EpochTime = %.3f (s) Loss = %.4f' %
+                     (epoch_idx + 1, 500, epoch_end_time - epoch_start_time, losses.avg))
 
         # # Validate the training models
         # iou = test_net(cfg, epoch_idx + 1, val_data_loader, val_writer, encoder, decoder, refiner, merger)
 
-        # Save weights to file
-        if (epoch_idx + 1) % 10 == 0:
-            file_name = 'mi-checkpoint-epoch-%03d.pth' % (epoch_idx + 1)
+        # # Save weights to file
+        # if (epoch_idx + 1) % cfg.TRAIN.SAVE_FREQ == 0 or iou > best_iou:
+        #     file_name = 'mi-checkpoint-epoch-%03d.pth' % (epoch_idx + 1)
+        #     if iou > best_iou:
+        #         best_iou = iou
+        #         best_epoch = epoch_idx
+        #         file_name = 'mi-checkpoint-best.pth'
 
-            output_path = os.path.join(cfg.DIR.OUT_PATH, file_name)
-            if not os.path.exists(cfg.DIR.OUT_PATH):
-                os.makedirs(cfg.DIR.OUT_PATH)
+        #     output_path = os.path.join(cfg.DIR.CHECKPOINTS, file_name)
+        #     if not os.path.exists(cfg.DIR.CHECKPOINTS):
+        #         os.makedirs(cfg.DIR.CHECKPOINTS)
 
-            checkpoint = {
-                'epoch_idx': epoch_idx + 1,
-                'encoder_state_dict':encoder.state_dict(),
-                'trans_decoder_state_dict': trans_decoder.state_dict(),
-                'fc_state_dict':fc.state_dict()
-            }
+        #     checkpoint = {
+        #         'epoch_idx': epoch_idx,
+        #         'best_iou': best_iou,
+        #         'best_epoch': best_epoch,
+        #         'decoder_state_dict': trans_decoder.state_dict(),
+        #         'fc_state_dict':fc.state_dict()
+        #     }
 
-            torch.save(checkpoint, output_path)
-            logging.info('Saved checkpoint to %s ...' % output_path)
-
-    plt.ylabel('Train loss')
-    plt.plot(np.arange(100), train_loss_over_epochs, 'k-')
-    plt.xlabel('Epochs')
-    plt.xticks(np.arange(100, dtype=int, step=10))
-    plt.grid(True)
-    plt.savefig("plot.png")
-    plt.close(fig)
+        #     torch.save(checkpoint, output_path)
+        #     logging.info('Saved checkpoint to %s ...' % output_path)

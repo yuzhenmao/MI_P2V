@@ -45,6 +45,7 @@ def predict_net(cfg,
         utils.data_transforms.Normalize(mean=cfg.DATASET.MEAN, std=cfg.DATASET.STD),
         utils.data_transforms.ToTensor(),
     ])
+    
     rendering_images = []
     rendering_image = cv2.imread(img, cv2.IMREAD_UNCHANGED).astype(np.float32) / 255.
     rendering_images.append(rendering_image)

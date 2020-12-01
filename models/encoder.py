@@ -34,7 +34,7 @@ class Encoder(torch.nn.Module):
         self.layer3 = torch.nn.Sequential(
             torch.nn.Conv2d(256, 256, kernel_size=3, padding=1),
             torch.nn.BatchNorm2d(256),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(0.1),
             torch.nn.MaxPool2d(kernel_size=2)
         )
 
