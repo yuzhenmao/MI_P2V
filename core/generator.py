@@ -34,6 +34,22 @@ import utils.binvox_rw
 import pandas as pd
 from mpl_toolkits.mplot3d import Axes3D
 import cv2
+from multiprocessing import Pool
+
+
+def gen_video_1(ii,item,iou,data,i):
+    fig = plt.figure()
+    ax = fig.gca(projection=Axes3D.name)
+    ax.voxels(data, facecolors='blue', edgecolor="k", shade=False)
+    ax.view_init(elev=10., azim=ii)
+    plt.axis('off')
+    ii = (ii-90)/30
+    ax.text(16, 16, 36, "IoU: %.4f"%iou, verticalalignment="top",horizontalalignment="center")
+    plt.savefig("./result/%d/%s/movie%d.png" % (i, item, ii))
+    plt.close()
+
+def gen_video(params):
+    return gen_video_1(params[0], params[1], params[2], params[3], params[4])
 
 
 def gen_net(cfg):
@@ -251,16 +267,13 @@ def gen_net(cfg):
                 directory = './result/%d/%s'%(i,item)
                 if not os.path.exists(directory):
                     os.makedirs(directory)
-                fig = plt.figure()
-                ax = fig.gca(projection=Axes3D.name)
-                ax.voxels(data, facecolors='blue', edgecolor="k", shade=False)
-                for ii in range(90,450,30):
-                    ax.view_init(elev=10., azim=ii)
-                    plt.axis('off')
-                    ii = (ii-90)/30
-                    ax.text(16, 16, 36, "IoU: %.4f"%iou, verticalalignment="top",horizontalalignment="center")
-                    plt.savefig("./result/%d/%s/movie%d.png" % (i, item, ii))
-                plt.close()
+                params = []
+                for views in range(90,450,30):
+                    params.append((views,item,iou,data,i))
+                pool = Pool(12)
+                pool.map(gen_video, params)
+                pool.close()
+                pool.join()
 
             for item in ['gd', 'base', 'mi']:
                 path = './result/%d/%s/'%(i,item)
@@ -276,8 +289,4 @@ def gen_net(cfg):
             os.system(rm_cmd)
 
             logging.info('Image %d IoU: [%.4f] MI-IoU: [%.4f]' % (i, iou, mi_iou))
-            
-        # IoUs = np.array(IoUs)
-        # path = './result/' + 'IoUs.npy'
-        # np.save(path, IoUs)
 
