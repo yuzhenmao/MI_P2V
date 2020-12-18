@@ -55,26 +55,6 @@ def gen_video(params):
 def gen_net(cfg):
     # Enable the inbuilt cudnn auto-tuner to find the best algorithm to use
     torch.backends.cudnn.benchmark = True
-
-    # # Set up data augmentation
-    # IMG_SIZE = cfg.CONST.IMG_H, cfg.CONST.IMG_W
-    # CROP_SIZE = cfg.CONST.CROP_IMG_H, cfg.CONST.CROP_IMG_W
-    # train_transforms = utils.data_transforms.Compose([
-    #     utils.data_transforms.RandomCrop(IMG_SIZE, CROP_SIZE),
-    #     utils.data_transforms.RandomBackground(cfg.TRAIN.RANDOM_BG_COLOR_RANGE),
-    #     utils.data_transforms.ColorJitter(cfg.TRAIN.BRIGHTNESS, cfg.TRAIN.CONTRAST, cfg.TRAIN.SATURATION),
-    #     utils.data_transforms.RandomNoise(cfg.TRAIN.NOISE_STD),
-    #     utils.data_transforms.Normalize(mean=cfg.DATASET.MEAN, std=cfg.DATASET.STD),
-    #     utils.data_transforms.RandomFlip(),
-    #     utils.data_transforms.RandomPermuteRGB(),
-    #     utils.data_transforms.ToTensor(),
-    # ])
-    # val_transforms = utils.data_transforms.Compose([
-    #     utils.data_transforms.CenterCrop(IMG_SIZE, CROP_SIZE),
-    #     utils.data_transforms.RandomBackground(cfg.TEST.RANDOM_BG_COLOR_RANGE),
-    #     utils.data_transforms.Normalize(mean=cfg.DATASET.MEAN, std=cfg.DATASET.STD),
-    #     utils.data_transforms.ToTensor(),
-    # ])
     # Set up data augmentation
     IMG_SIZE = cfg.CONST.IMG_H, cfg.CONST.IMG_W
     CROP_SIZE = cfg.CONST.CROP_IMG_H, cfg.CONST.CROP_IMG_W
