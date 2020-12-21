@@ -203,8 +203,8 @@ def mi_train_net(cfg):
 
         encoder.load_state_dict(checkpoint['encoder_state_dict'])
         decoder.load_state_dict(checkpoint['decoder_state_dict'])
-        mi_encoder.load_state_dict(mi_checkpoint['mi_encoder_state_dict'])
-        mi_trans_decoder.load_state_dict(mi_checkpoint['mi_trans_decoder_state_dict'])
+        mi_encoder.load_state_dict(checkpoint['mi_encoder_state_dict'])
+        mi_trans_decoder.load_state_dict(checkpoint['mi_trans_decoder_state_dict'])
 
         if cfg.NETWORK.USE_REFINER:
             refiner.load_state_dict(checkpoint['refiner_state_dict'])
