@@ -12,6 +12,8 @@ import scipy.io
 import scipy.ndimage
 import sys
 import torch.utils.data.dataset
+import pandas as pd
+from pytorch3d.renderer.cameras import look_at_view_transform
 
 from enum import Enum, unique
 
@@ -55,13 +57,15 @@ class ShapeNetDataset(torch.utils.data.dataset.Dataset):
         sample_name = self.file_list[idx]['sample_name']
         rendering_image_paths = self.file_list[idx]['rendering_images']
         volume_path = self.file_list[idx]['volume']
+        weights_path = self.file_list[idx]['weights']
 
         # Get data of rendering images
         if self.dataset_type == DatasetType.TRAIN:
-            selected_rendering_image_paths = [
-                rendering_image_paths[i]
-                for i in random.sample(range(len(rendering_image_paths)), self.n_views_rendering)
-            ]
+            selected_rendering_image_paths = []
+            weights = []
+            for i in random.sample(range(len(rendering_image_paths)), self.n_views_rendering):
+                selected_rendering_image_paths.append(rendering_image_paths[i])
+                weights.append(weights_path[i])
         else:
             selected_rendering_image_paths = [rendering_image_paths[i] for i in range(self.n_views_rendering)]
 
@@ -84,8 +88,49 @@ class ShapeNetDataset(torch.utils.data.dataset.Dataset):
             with open(volume_path, 'rb') as f:
                 volume = utils.binvox_rw.read_as_3d_array(f)
                 volume = volume.data.astype(np.float32)
+                if self.dataset_type == DatasetType.TRAIN:
+                    weight = weights[0]
+                    volume = np.multiply(volume, weight)
 
         return taxonomy_name, sample_name, np.asarray(rendering_images), volume
+
+    def Rotate_Weight(self, volume, azim, elev, dist):
+        volume = volume.transpose(2,1,0)
+        R, T = look_at_view_transform(dist=dist, elev=90-elev, azim=azim)
+        R, T = R.numpy(), T.numpy()
+        R, T = np.asmatrix(R), np.asmatrix(T)
+        M = np.zeros([4,4])
+        M[0:3, 0:3] = R
+        M[0:3,3] = T
+        x,y,z = np.nonzero(volume)
+        voxles = np.ones([len(x),4])
+        voxles[:,0] = x-16
+        voxles[:,1] = y-16
+        voxles[:,2] = z-16
+        after = np.matmul(voxles,M)
+        after = np.matrix.round(after[:,0:3])
+        after = after.astype(np.int32)
+        after = np.transpose(after)
+        mask = np.zeros(volume.shape)
+        after = np.clip(after, -16, 15)
+        mask[after[2]+16,after[0]+16,after[1]+16] = 1
+        face = []
+        for i in range(32):
+            for j in range(32):
+                if np.max(mask[:,i,j]) == 1:
+                    k = np.where(mask[:,i,j]==1)[0][0]
+                    face.append([i-16,j-16,k-16])               
+        index = []            
+        for i in range(len(after[0])):
+            if list(after[:,i]) in face:
+                index.append(i)
+        weight = np.ones([32,32,32])*0.5
+        voxles_n = (voxles+16).astype(np.int32)
+        for i in index:
+            z, y, x, _ = voxles_n[i]
+            weight[x,y,z] = 1
+
+        return weight
 
 
 # //////////////////////////////// = End of ShapeNetDataset Class Definition = ///////////////////////////////// #
@@ -95,6 +140,8 @@ class ShapeNetDataLoader:
     def __init__(self, cfg):
         self.dataset_taxonomy = None
         self.rendering_image_path_template = cfg.DATASETS.SHAPENET.RENDERING_PATH
+        self.metadata_path_template = cfg.DATASETS.SHAPENET.METADATA_PATH
+        self.weight_path_template = cfg.DATASETS.SHAPENET.WEIGHT_PATH
         self.volume_path_template = cfg.DATASETS.SHAPENET.VOXEL_PATH
 
         # Load all taxonomies of the dataset
@@ -134,16 +181,24 @@ class ShapeNetDataLoader:
 
             # Get file list of rendering images
             img_file_path = self.rendering_image_path_template % (taxonomy_folder_name, sample_name, 0)
+            metadata_path = self.metadata_path_template % (taxonomy_folder_name, sample_name)
+            weight_file_path = self.weight_path_template % (taxonomy_folder_name, sample_name, 0)
+            metadata = pd.read_csv(metadata_path, sep=' ', names=['azimuth', 'elevation', 'in-plane rotation', 'distance', 'the field of view'])
             img_folder = os.path.dirname(img_file_path)
-            total_views = len(os.listdir(img_folder))
+            total_views = int(metadata.iloc[0]['the field of view'])-1
             rendering_image_indexes = range(total_views)
             rendering_images_file_path = []
+            weights_file_path = []
             for image_idx in rendering_image_indexes:
                 img_file_path = self.rendering_image_path_template % (taxonomy_folder_name, sample_name, image_idx)
+                weight_file_path = self.weight_path_template % (taxonomy_folder_name, sample_name, image_idx)
                 if not os.path.exists(img_file_path):
                     continue
 
                 rendering_images_file_path.append(img_file_path)
+                weights_file_path.append(weight_file_path)
+
+            
 
             if len(rendering_images_file_path) == 0:
                 logging.warn('Ignore sample %s/%s since image files not exists.' % (taxonomy_folder_name, sample_name))
@@ -155,6 +210,8 @@ class ShapeNetDataLoader:
                 'sample_name': sample_name,
                 'rendering_images': rendering_images_file_path,
                 'volume': volume_file_path,
+                'metadata': metadata_path,
+                'weights': weights_file_path,
             })
 
         return files_of_taxonomy

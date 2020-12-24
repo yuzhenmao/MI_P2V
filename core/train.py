@@ -206,11 +206,11 @@ def train_net(cfg):
                 generated_volumes = merger(raw_features, generated_volumes)
             else:
                 generated_volumes = torch.mean(generated_volumes, dim=1)
-            encoder_loss = bce_loss(generated_volumes, ground_truth_volumes) * 10
+            encoder_loss = bce_loss(generated_volumes, ground_truth_volumes.float()) * 10
 
             if cfg.NETWORK.USE_REFINER and epoch_idx >= cfg.TRAIN.EPOCH_START_USE_REFINER:
                 generated_volumes = refiner(generated_volumes)
-                refiner_loss = bce_loss(generated_volumes, ground_truth_volumes) * 10
+                refiner_loss = bce_loss(generated_volumes, ground_truth_volumes.float()) * 10
             else:
                 refiner_loss = encoder_loss
 

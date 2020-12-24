@@ -15,6 +15,8 @@ __C.DATASETS.SHAPENET                       = edict()
 __C.DATASETS.SHAPENET.TAXONOMY_FILE_PATH    = '/local-scratch/test/Pix2Vox/datasets/ShapeNet.json'
 # __C.DATASETS.SHAPENET.TAXONOMY_FILE_PATH  = './datasets/PascalShapeNet.json'
 __C.DATASETS.SHAPENET.RENDERING_PATH        = '/local-scratch/test/Pix2Vox/Datasets/ShapeNet/ShapeNetRendering/%s/%s/rendering/%02d.png'
+__C.DATASETS.SHAPENET.METADATA_PATH        = '/local-scratch/test/Pix2Vox/Datasets/ShapeNet/ShapeNetRendering/%s/%s/rendering/rendering_metadata.txt'
+__C.DATASETS.SHAPENET.WEIGHT_PATH        = '/local-scratch/test/Pix2Vox/Datasets/ShapeNet/ShapeNetRendering/%s/%s/rendering/%02d.npy'
 # __C.DATASETS.SHAPENET.RENDERING_PATH      = '/home/hzxie/Datasets/ShapeNet/PascalShapeNetRendering/%s/%s/render_%04d.jpg'
 __C.DATASETS.SHAPENET.VOXEL_PATH            = '/local-scratch/test/Pix2Vox/Datasets/ShapeNet/ShapeNetVox32/%s/%s/model.binvox'
 __C.DATASETS.PASCAL3D                       = edict()
@@ -72,7 +74,7 @@ __C.NETWORK                                 = edict()
 __C.NETWORK.LEAKY_VALUE                     = .2
 __C.NETWORK.TCONV_USE_BIAS                  = False
 __C.NETWORK.USE_REFINER                     = True
-__C.NETWORK.USE_MERGER                      = True
+__C.NETWORK.USE_MERGER                      = False
 
 #
 # Training

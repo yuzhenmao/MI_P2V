@@ -109,10 +109,11 @@ def test_net(cfg,
             image_features = encoder(rendering_images)
             raw_features, generated_volume = decoder(image_features)
 
-            if cfg.NETWORK.USE_MERGER and epoch_idx >= cfg.TRAIN.EPOCH_START_USE_MERGER:
-                generated_volume = merger(raw_features, generated_volume)
-            else:
-                generated_volume = torch.mean(generated_volume, dim=1)
+            # if cfg.NETWORK.USE_MERGER and epoch_idx >= cfg.TRAIN.EPOCH_START_USE_MERGER:
+            #     generated_volume = merger(raw_features, generated_volume)
+            # else:
+            #     generated_volume = torch.mean(generated_volume, dim=1)
+            generated_volume = torch.mean(generated_volume, dim=1)
             encoder_loss = bce_loss(generated_volume, ground_truth_volume) * 10
 
             if cfg.NETWORK.USE_REFINER and epoch_idx >= cfg.TRAIN.EPOCH_START_USE_REFINER:
@@ -140,12 +141,12 @@ def test_net(cfg,
             test_iou[taxonomy_id]['iou'].append(sample_iou)
 
             # Append generated volumes to TensorBoard
-            if test_writer and sample_idx < 3:
-                # Volume Visualization
-                rendering_views = utils.helpers.get_volume_views(generated_volume.cpu().numpy())
-                test_writer.add_image('Model%02d/Reconstructed' % sample_idx, rendering_views, epoch_idx)
-                rendering_views = utils.helpers.get_volume_views(ground_truth_volume.cpu().numpy())
-                test_writer.add_image('Model%02d/GroundTruth' % sample_idx, rendering_views, epoch_idx)
+            # if test_writer and sample_idx < 3:
+            #     # Volume Visualization
+            #     rendering_views = utils.helpers.get_volume_views(generated_volume.cpu().numpy())
+            #     test_writer.add_image('Model%02d/Reconstructed' % sample_idx, rendering_views, epoch_idx)
+            #     rendering_views = utils.helpers.get_volume_views(ground_truth_volume.cpu().numpy())
+            #     test_writer.add_image('Model%02d/GroundTruth' % sample_idx, rendering_views, epoch_idx)
 
             # Print sample loss and IoU
             logging.info('Test[%d/%d] Taxonomy = %s Sample = %s EDLoss = %.4f RLoss = %.4f IoU = %s' %

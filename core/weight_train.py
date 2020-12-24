@@ -28,7 +28,9 @@ from utils.average_meter import AverageMeter
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import pdb
+from pytorch3d.renderer.cameras import look_at_view_transform
 
 
 def train_net(cfg):
@@ -204,6 +206,7 @@ def train_net(cfg):
             raw_features, generated_volumes = decoder(image_features)
 
             if cfg.NETWORK.USE_MERGER and epoch_idx >= cfg.TRAIN.EPOCH_START_USE_MERGER:
+                generated_volumes = torch.sum(generated_volumes, dim=1)
                 generated_volumes, volume_weights = merger(raw_features, generated_volumes)
                 # print(generated_volumes.size())     # torch.Size([32, 32, 32, 32])
                 # print(volume_weights.size())        # torch.Size([32, 32, 32, 32])

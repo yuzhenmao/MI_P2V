@@ -22,7 +22,7 @@ from tensorboardX import SummaryWriter
 
 import csv
 import cv2
-
+import pdb
 
 def predict_net(cfg,
              img,
@@ -34,7 +34,7 @@ def predict_net(cfg,
              merger=None):
     # Enable the inbuilt cudnn auto-tuner to find the best algorithm to use
     torch.backends.cudnn.benchmark = True
-    test_writer = SummaryWriter('./tensorboard')
+    # test_writer = SummaryWriter('./tensorboard')
 
     IMG_SIZE = cfg.CONST.IMG_H, cfg.CONST.IMG_W
     CROP_SIZE = cfg.CONST.CROP_IMG_H, cfg.CONST.CROP_IMG_W
@@ -92,7 +92,7 @@ def predict_net(cfg,
         raw_features, generated_volume = decoder(image_features)
 
         if cfg.NETWORK.USE_MERGER and epoch_idx >= cfg.TRAIN.EPOCH_START_USE_MERGER:
-            generated_volume = merger(raw_features, generated_volume)
+            generated_volume, weight= merger(raw_features, generated_volume)
         else:
             generated_volume = torch.mean(generated_volume, dim=1)
 
@@ -100,15 +100,17 @@ def predict_net(cfg,
             generated_volume = refiner(generated_volume)
 
         # Append generated volumes to TensorBoard
-        if test_writer:
+        # if test_writer:
             # Volume Visualization
-            rendering_views = utils.helpers.get_volume_views(generated_volume.cpu().numpy())
-            data = generated_volume.cpu().numpy().__ge__(0.5).reshape(1,32*32*32)
-            np.save('out.npy', data)
+        # rendering_views = utils.helpers.get_volume_views(generated_volume.cpu().numpy())
+        weight = weight.cpu().numpy().reshape(1,32*32*32)
+        data = generated_volume.cpu().numpy().__ge__(0.5).reshape(1,32*32*32)
+        np.save('weight.npy', weight)
+        np.save('out.npy', data)
 
             # test_writer.add_image('Model%02d/Reconstructed' % sample_idx, rendering_views, epoch_idx)
             # rendering_views = utils.helpers.get_volume_views(ground_truth_volume.cpu().numpy())
             # test_writer.add_image('Model%02d/GroundTruth' % sample_idx, rendering_views, epoch_idx)
             
-    test_writer.close()
+    # test_writer.close()
     return None
