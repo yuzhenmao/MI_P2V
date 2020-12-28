@@ -240,7 +240,7 @@ def gen_net(cfg):
 
             overlap2 = np.logical_and(data1, data3)
             union2 = np.logical_or(data1, data3)
-            mi_iou = np.sum(overlap2) / np.sum(union2) 
+            mi_iou = np.sum(overlap2) / np.sum(union2)
 
             # IoUs.append((iou, mi_iou))
             for item, iou, data in [('gd',1.0, data1), ('base',iou, data2), ('mi',mi_iou, data3)]:

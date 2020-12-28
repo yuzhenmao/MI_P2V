@@ -42,12 +42,18 @@ class ShapeNetDataset(torch.utils.data.dataset.Dataset):
         return len(self.file_list)
 
     def __getitem__(self, idx):
-        taxonomy_name, sample_name, rendering_images, volume = self.get_datum(idx)
+        if self.dataset_type == DatasetType.TRAIN:
+            taxonomy_name, sample_name, rendering_images, volume, weight = self.get_datum(idx)
+        else:
+            taxonomy_name, sample_name, rendering_images, volume = self.get_datum(idx)
 
         if self.transforms:
             rendering_images = self.transforms(rendering_images)
 
-        return taxonomy_name, sample_name, rendering_images, volume
+        if self.dataset_type == DatasetType.TRAIN:
+            return taxonomy_name, sample_name, rendering_images, volume, weight
+        else:
+            return taxonomy_name, sample_name, rendering_images, volume
 
     def set_n_views_rendering(self, n_views_rendering):
         self.n_views_rendering = n_views_rendering
@@ -89,10 +95,12 @@ class ShapeNetDataset(torch.utils.data.dataset.Dataset):
                 volume = utils.binvox_rw.read_as_3d_array(f)
                 volume = volume.data.astype(np.float32)
                 if self.dataset_type == DatasetType.TRAIN:
-                    weight = weights[0]
-                    volume = np.multiply(volume, weight)
-
-        return taxonomy_name, sample_name, np.asarray(rendering_images), volume
+                    weight = np.load(weights[0]).reshape([32,32,32])
+                    # volume = np.multiply(volume, weight)
+        if self.dataset_type == DatasetType.TRAIN:
+            return taxonomy_name, sample_name, np.asarray(rendering_images), volume, weight
+        else:
+            return taxonomy_name, sample_name, np.asarray(rendering_images), volume
 
     def Rotate_Weight(self, volume, azim, elev, dist):
         volume = volume.transpose(2,1,0)

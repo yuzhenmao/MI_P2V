@@ -46,7 +46,7 @@ def Rotate_Weight(volume, azim, elev, dist):
     for i in range(len(after[0])):
         if list(after[:,i]) in face:
             index.append(i)
-    weight = np.ones([32,32,32])*0.88
+    weight = np.ones([32,32,32])*0.6
     voxles_n = (voxles+16).astype(np.int32)
     for i in index:
         z, y, x, _ = voxles_n[i]

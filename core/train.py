@@ -28,6 +28,7 @@ from utils.average_meter import AverageMeter
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import pdb
 
 
 def train_net(cfg):
@@ -136,7 +137,7 @@ def train_net(cfg):
         merger = torch.nn.DataParallel(merger).cuda()
 
     # Set up loss functions
-    bce_loss = torch.nn.BCELoss()
+    # bce_loss = torch.nn.BCELoss()
 
     # Load pretrained model if exists
     init_epoch = 0
@@ -190,13 +191,15 @@ def train_net(cfg):
         batch_end_time = time()
         n_batches = len(train_data_loader)
         for batch_idx, (taxonomy_names, sample_names, rendering_images,
-                        ground_truth_volumes) in enumerate(train_data_loader):
+                        ground_truth_volumes, weight) in enumerate(train_data_loader):
             # Measure data time
             data_time.update(time() - batch_end_time)
 
             # Get data from data loader
             rendering_images = utils.helpers.var_or_cuda(rendering_images)
             ground_truth_volumes = utils.helpers.var_or_cuda(ground_truth_volumes)
+            weight = utils.helpers.var_or_cuda(weight)
+            weighted_bce_loss = torch.nn.BCELoss(weight=weight)
 
             # Train the encoder, decoder, refiner, and merger
             image_features = encoder(rendering_images)
@@ -206,13 +209,15 @@ def train_net(cfg):
                 generated_volumes = merger(raw_features, generated_volumes)
             else:
                 generated_volumes = torch.mean(generated_volumes, dim=1)
-            encoder_loss = bce_loss(generated_volumes, ground_truth_volumes.float()) * 10
+            encoder_loss = weighted_bce_loss(generated_volumes, ground_truth_volumes) * 10
 
             if cfg.NETWORK.USE_REFINER and epoch_idx >= cfg.TRAIN.EPOCH_START_USE_REFINER:
                 generated_volumes = refiner(generated_volumes)
-                refiner_loss = bce_loss(generated_volumes, ground_truth_volumes.float()) * 10
+                refiner_loss = weighted_bce_loss(generated_volumes, ground_truth_volumes) * 10
             else:
                 refiner_loss = encoder_loss
+            
+            # pdb.set_trace()
 
             # Gradient decent
             encoder.zero_grad()

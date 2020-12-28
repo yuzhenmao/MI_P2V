@@ -168,13 +168,13 @@ def mi_train_net(cfg):
                                                                milestones=cfg.TRAIN.MERGER_LR_MILESTONES,
                                                                gamma=cfg.TRAIN.GAMMA)
     mi_encoder_lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(mi_encoder_solver,
-                                                                milestones=[200],
+                                                                milestones=[150],
                                                                 gamma=cfg.TRAIN.GAMMA)
     mi_trans_decoder_lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(mi_trans_decoder_solver,
-                                                                milestones=[200],
+                                                                milestones=[150],
                                                                 gamma=cfg.TRAIN.GAMMA)
     # mi_fc_lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(mi_fc_solver,
-    #                                                             milestones=[200],
+    #                                                             milestones=[150],
     #                                                             gamma=cfg.TRAIN.GAMMA)
 
     if torch.cuda.is_available():
@@ -187,7 +187,7 @@ def mi_train_net(cfg):
         # mi_fc = torch.nn.DataParallel(mi_fc).cuda()
 
     # Set up loss functions
-    bce_loss = torch.nn.BCELoss()
+    # bce_loss = torch.nn.BCELoss()
     mi_loss = MILoss()
 
     # Load pretrained model if exists
@@ -228,7 +228,7 @@ def mi_train_net(cfg):
 
 
     # Training loop
-    for epoch_idx in range(init_epoch, 200):
+    for epoch_idx in range(init_epoch, 150):
         # Tick / tock
         epoch_start_time = time()
 
@@ -253,7 +253,7 @@ def mi_train_net(cfg):
         batch_end_time = time()
         n_batches = len(train_data_loader)
         for batch_idx, (taxonomy_names, sample_names, rendering_images,
-                        ground_truth_volumes) in enumerate(train_data_loader):
+                        ground_truth_volumes, weight) in enumerate(train_data_loader):
 
             # for name, param in mi_trans_decoder.named_parameters():
             #     param.requires_grad = True
@@ -294,6 +294,8 @@ def mi_train_net(cfg):
             # Train the encoder, decoder, refiner, and merger
             rendering_images = utils.helpers.var_or_cuda(rendering_images)
             ground_truth_volumes = utils.helpers.var_or_cuda(ground_truth_volumes)
+            weight = utils.helpers.var_or_cuda(weight)
+            weighted_bce_loss = torch.nn.BCELoss(weight=weight)
 
             image_features = encoder(rendering_images)
             raw_features, generated_volumes = decoder(image_features)
@@ -302,7 +304,7 @@ def mi_train_net(cfg):
                 generated_volumes = merger(raw_features, generated_volumes)
             else:
                 generated_volumes = torch.mean(generated_volumes, dim=1)
-            encoder_loss = bce_loss(generated_volumes, ground_truth_volumes) * 10
+            encoder_loss = weighted_bce_loss(generated_volumes, ground_truth_volumes) * 10
 
             # im_vectors = mi_fc(mi_encoder(rendering_images))
             # vx_vectors = mi_fc(mi_trans_decoder(generated_volumes))
@@ -315,7 +317,7 @@ def mi_train_net(cfg):
 
             if cfg.NETWORK.USE_REFINER and epoch_idx >= cfg.TRAIN.EPOCH_START_USE_REFINER:
                 generated_volumes = refiner(generated_volumes)
-                refiner_loss = bce_loss(generated_volumes, ground_truth_volumes) * 10
+                refiner_loss = weighted_bce_loss(generated_volumes, ground_truth_volumes) * 10
                 # vx_vectors = mi_fc(mi_trans_decoder(generated_volumes))
                 vx_vectors = mi_trans_decoder(generated_volumes)
                 vx_vectors = torch.squeeze(vx_vectors, dim=1).contiguous().view(-1, 256 * 7 * 7)
@@ -372,7 +374,7 @@ def mi_train_net(cfg):
             batch_end_time = time()
             logging.info(
                 '[Epoch %d/%d][Batch %d/%d] BatchTime = %.3f (s) DataTime = %.3f (s) EDLoss = %.4f -MIEDLoss = %.4f' %
-                (epoch_idx + 1, 200, batch_idx + 1, n_batches, batch_time.val, data_time.val,
+                (epoch_idx + 1, 150, batch_idx + 1, n_batches, batch_time.val, data_time.val,
                  encoder_loss.item(), -1*mi_encoder_loss.item()))
 
         # Adjust learning rate
@@ -393,7 +395,7 @@ def mi_train_net(cfg):
         # Tick / tock
         epoch_end_time = time()
         logging.info('[Epoch %d/%d] EpochTime = %.3f (s) EDLoss = %.4f -MIEDLoss = %.4f' %
-                     (epoch_idx + 1, 200, epoch_end_time - epoch_start_time, encoder_losses.avg,
+                     (epoch_idx + 1, 150, epoch_end_time - epoch_start_time, encoder_losses.avg,
                       -1*mi_encoder_losses.avg))
 
         # Update Rendering Views
@@ -401,7 +403,7 @@ def mi_train_net(cfg):
             n_views_rendering = random.randint(1, cfg.CONST.N_VIEWS_RENDERING)
             train_data_loader.dataset.set_n_views_rendering(n_views_rendering)
             logging.info('Epoch [%d/%d] Update #RenderingViews to %d' %
-                         (epoch_idx + 2, 200, n_views_rendering))
+                         (epoch_idx + 2, 150, n_views_rendering))
 
         # Validate the training models
         iou = test_net(cfg, epoch_idx + 1, val_data_loader, val_writer, encoder, decoder, refiner, merger)
@@ -443,9 +445,9 @@ def mi_train_net(cfg):
     fig = plt.figure()
 
     plt.ylabel('Train loss')
-    plt.plot(np.arange(200), enc_train_loss_over_epochs, 'b-', np.arange(200), mi_enc_loss_over_epochs, 'r-')
+    plt.plot(np.arange(150), enc_train_loss_over_epochs, 'b-', np.arange(150), mi_enc_loss_over_epochs, 'r-')
     plt.xlabel('Epochs')
-    plt.xticks(np.arange(200, dtype=int, step=10))
+    plt.xticks(np.arange(150, dtype=int, step=10))
     plt.grid(True)
     plt.savefig("train_mi_plot.png")
     plt.close(fig)
