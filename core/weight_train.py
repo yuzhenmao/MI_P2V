@@ -28,9 +28,7 @@ from utils.average_meter import AverageMeter
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import pdb
-from pytorch3d.renderer.cameras import look_at_view_transform
 
 
 def train_net(cfg):
@@ -139,7 +137,7 @@ def train_net(cfg):
         merger = torch.nn.DataParallel(merger).cuda()
 
     # Set up loss functions
-    bce_loss = torch.nn.BCELoss()
+    # bce_loss = torch.nn.BCELoss()
 
     # Load pretrained model if exists
     init_epoch = 0
@@ -193,42 +191,31 @@ def train_net(cfg):
         batch_end_time = time()
         n_batches = len(train_data_loader)
         for batch_idx, (taxonomy_names, sample_names, rendering_images,
-                        ground_truth_volumes) in enumerate(train_data_loader):
+                        ground_truth_volumes, weight) in enumerate(train_data_loader):
             # Measure data time
             data_time.update(time() - batch_end_time)
 
             # Get data from data loader
             rendering_images = utils.helpers.var_or_cuda(rendering_images)
             ground_truth_volumes = utils.helpers.var_or_cuda(ground_truth_volumes)
+            weight = utils.helpers.var_or_cuda(weight)
+            weighted_bce_loss = torch.nn.BCELoss(weight=weight)
 
             # Train the encoder, decoder, refiner, and merger
             image_features = encoder(rendering_images)
             raw_features, generated_volumes = decoder(image_features)
 
             if cfg.NETWORK.USE_MERGER and epoch_idx >= cfg.TRAIN.EPOCH_START_USE_MERGER:
-                generated_volumes = torch.sum(generated_volumes, dim=1)
-                generated_volumes, volume_weights = merger(raw_features, generated_volumes)
-                # print(generated_volumes.size())     # torch.Size([32, 32, 32, 32])
-                # print(volume_weights.size())        # torch.Size([32, 32, 32, 32])
-                weighted_volumes = generated_volumes * volume_weights
-                weighted_volumes = torch.clamp(weighted_volumes, min=0, max=1)
-                # print(weighted_volumes.size())      # torch.Size([32, 32, 32, 32])
-                weights = volume_weights.detach()
-                # print(weights.size())        # torch.Size([32, 32, 32, 32])
-                encoder_loss = bce_loss(weighted_volumes, ground_truth_volumes * weights) * 10
+                generated_volumes = merger(raw_features, generated_volumes)
             else:
                 generated_volumes = torch.mean(generated_volumes, dim=1)
-                encoder_loss = bce_loss(generated_volumes, ground_truth_volumes) * 10
+            encoder_loss = weighted_bce_loss(generated_volumes, ground_truth_volumes) * 10
 
             if cfg.NETWORK.USE_REFINER and epoch_idx >= cfg.TRAIN.EPOCH_START_USE_REFINER:
                 generated_volumes = refiner(generated_volumes)
-                # print(generated_volumes.size())     # torch.Size([32, 32, 32, 32])
-                weighted_volumes = generated_volumes * volume_weights
-                weighted_volumes = torch.clamp(weighted_volumes, min=0, max=1)
-                refiner_loss = bce_loss(weighted_volumes, ground_truth_volumes * weights) * 10
+                refiner_loss = weighted_bce_loss(generated_volumes, ground_truth_volumes) * 10
             else:
                 refiner_loss = encoder_loss
-
             # Gradient decent
             encoder.zero_grad()
             decoder.zero_grad()

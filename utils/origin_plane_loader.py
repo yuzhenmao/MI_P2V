@@ -105,19 +105,20 @@ class ShapeNetDataLoader:
         files = []
 
         # Load data for each category
-        taxonomy = self.dataset_taxonomy[0]
-        taxonomy_folder_name = taxonomy['taxonomy_id']
-        logging.info('Collecting files of Taxonomy[ID=%s, Name=%s]' %
-                        (taxonomy['taxonomy_id'], taxonomy['taxonomy_name']))
-        samples = []
-        if dataset_type == DatasetType.TRAIN:
-            samples = taxonomy['train']
-        elif dataset_type == DatasetType.TEST:
-            samples = taxonomy['test']
-        elif dataset_type == DatasetType.VAL:
-            samples = taxonomy['val']
+        dataset_taxonomy = [self.dataset_taxonomy[0], self.dataset_taxonomy[3], self.dataset_taxonomy[4], self.dataset_taxonomy[10]]
+        for taxonomy in dataset_taxonomy:
+            taxonomy_folder_name = taxonomy['taxonomy_id']
+            logging.info('Collecting files of Taxonomy[ID=%s, Name=%s]' %
+                         (taxonomy['taxonomy_id'], taxonomy['taxonomy_name']))
+            samples = []
+            if dataset_type == DatasetType.TRAIN:
+                samples = taxonomy['train'][:2000]
+            elif dataset_type == DatasetType.TEST:
+                samples = taxonomy['test']
+            elif dataset_type == DatasetType.VAL:
+                samples = taxonomy['val']
 
-        files.extend(self.get_files_of_taxonomy(taxonomy_folder_name, samples))
+            files.extend(self.get_files_of_taxonomy(taxonomy_folder_name, samples))
 
         logging.info('Complete collecting files of the dataset. Total files: %d.' % (len(files)))
         return ShapeNetDataset(dataset_type, files, n_views_rendering, transforms)

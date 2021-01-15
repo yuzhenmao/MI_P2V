@@ -264,7 +264,13 @@ def mi_train_net(cfg):
             
             # Measure data time
             data_time.update(time() - batch_end_time)
+            # pdb.set_trace()
 
+            weight = weight.reshape(16, 32, 32, 32)
+            rendering_images = rendering_images.reshape(16, 1, 3, 224, 224)
+            # pdb.set_trace()
+            ground_truth_volumes = torch.cat((ground_truth_volumes[0].expand(8,32,32,32), ground_truth_volumes[1].expand(8,32,32,32)), 0)
+            # pdb.set_trace()
             # Get data from data loader
             # rendering_images = utils.helpers.var_or_cuda(rendering_images)
             # ground_truth_volumes = utils.helpers.var_or_cuda(ground_truth_volumes)

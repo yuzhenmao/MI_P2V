@@ -84,6 +84,14 @@ class ShapeNetDataset(torch.utils.data.dataset.Dataset):
 
             rendering_images.append(rendering_image)
 
+        if self.dataset_type == DatasetType.TRAIN:
+            total_weights = []
+            for weight_path in weights:
+                weight = np.load(weight_path)
+                weight = (weight - 0.6) * 2.5
+                weight = weight.reshape([32,32,32])
+                total_weights.append(weight)
+
         # Get data of volume
         _, suffix = os.path.splitext(volume_path)
 
@@ -94,51 +102,10 @@ class ShapeNetDataset(torch.utils.data.dataset.Dataset):
             with open(volume_path, 'rb') as f:
                 volume = utils.binvox_rw.read_as_3d_array(f)
                 volume = volume.data.astype(np.float32)
-                if self.dataset_type == DatasetType.TRAIN:
-                    weight = np.load(weights[0]).reshape([32,32,32])
-                    # volume = np.multiply(volume, weight)
         if self.dataset_type == DatasetType.TRAIN:
-            return taxonomy_name, sample_name, np.asarray(rendering_images), volume, weight
+            return taxonomy_name, sample_name, np.asarray(rendering_images), volume, np.asarray(total_weights)
         else:
             return taxonomy_name, sample_name, np.asarray(rendering_images), volume
-
-    def Rotate_Weight(self, volume, azim, elev, dist):
-        volume = volume.transpose(2,1,0)
-        R, T = look_at_view_transform(dist=dist, elev=90-elev, azim=azim)
-        R, T = R.numpy(), T.numpy()
-        R, T = np.asmatrix(R), np.asmatrix(T)
-        M = np.zeros([4,4])
-        M[0:3, 0:3] = R
-        M[0:3,3] = T
-        x,y,z = np.nonzero(volume)
-        voxles = np.ones([len(x),4])
-        voxles[:,0] = x-16
-        voxles[:,1] = y-16
-        voxles[:,2] = z-16
-        after = np.matmul(voxles,M)
-        after = np.matrix.round(after[:,0:3])
-        after = after.astype(np.int32)
-        after = np.transpose(after)
-        mask = np.zeros(volume.shape)
-        after = np.clip(after, -16, 15)
-        mask[after[2]+16,after[0]+16,after[1]+16] = 1
-        face = []
-        for i in range(32):
-            for j in range(32):
-                if np.max(mask[:,i,j]) == 1:
-                    k = np.where(mask[:,i,j]==1)[0][0]
-                    face.append([i-16,j-16,k-16])               
-        index = []            
-        for i in range(len(after[0])):
-            if list(after[:,i]) in face:
-                index.append(i)
-        weight = np.ones([32,32,32])*0.5
-        voxles_n = (voxles+16).astype(np.int32)
-        for i in index:
-            z, y, x, _ = voxles_n[i]
-            weight[x,y,z] = 1
-
-        return weight
 
 
 # //////////////////////////////// = End of ShapeNetDataset Class Definition = ///////////////////////////////// #
@@ -160,19 +127,21 @@ class ShapeNetDataLoader:
         files = []
 
         # Load data for each category
-        taxonomy = self.dataset_taxonomy[0]
-        taxonomy_folder_name = taxonomy['taxonomy_id']
-        logging.info('Collecting files of Taxonomy[ID=%s, Name=%s]' %
-                        (taxonomy['taxonomy_id'], taxonomy['taxonomy_name']))
-        samples = []
-        if dataset_type == DatasetType.TRAIN:
-            samples = taxonomy['train']
-        elif dataset_type == DatasetType.TEST:
-            samples = taxonomy['test']
-        elif dataset_type == DatasetType.VAL:
-            samples = taxonomy['val']
 
-        files.extend(self.get_files_of_taxonomy(taxonomy_folder_name, samples))
+        dataset_taxonomy = [self.dataset_taxonomy[0], self.dataset_taxonomy[3], self.dataset_taxonomy[4], self.dataset_taxonomy[10]]
+        for taxonomy in dataset_taxonomy:
+            taxonomy_folder_name = taxonomy['taxonomy_id']
+            logging.info('Collecting files of Taxonomy[ID=%s, Name=%s]' %
+                         (taxonomy['taxonomy_id'], taxonomy['taxonomy_name']))
+            samples = []
+            if dataset_type == DatasetType.TRAIN:
+                samples = taxonomy['train'][:2000]
+            elif dataset_type == DatasetType.TEST:
+                samples = taxonomy['test']
+            elif dataset_type == DatasetType.VAL:
+                samples = taxonomy['val']
+
+            files.extend(self.get_files_of_taxonomy(taxonomy_folder_name, samples))
 
         logging.info('Complete collecting files of the dataset. Total files: %d.' % (len(files)))
         return ShapeNetDataset(dataset_type, files, n_views_rendering, transforms)

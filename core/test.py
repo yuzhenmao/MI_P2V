@@ -10,6 +10,7 @@ import torch.backends.cudnn
 import torch.utils.data
 
 import utils.data_loaders
+import utils.plane_loaders
 import utils.data_transforms
 import utils.helpers
 
@@ -49,9 +50,9 @@ def test_net(cfg,
             utils.data_transforms.ToTensor(),
         ])
 
-        dataset_loader = utils.data_loaders.DATASET_LOADER_MAPPING[cfg.DATASET.TEST_DATASET](cfg)
+        dataset_loader = utils.plane_loaders.DATASET_LOADER_MAPPING[cfg.DATASET.TEST_DATASET](cfg)
         test_data_loader = torch.utils.data.DataLoader(dataset=dataset_loader.get_dataset(
-            utils.data_loaders.DatasetType.TEST, cfg.CONST.N_VIEWS_RENDERING, test_transforms),
+            utils.plane_loaders.DatasetType.TEST, cfg.CONST.N_VIEWS_RENDERING, test_transforms),
                                                        batch_size=1,
                                                        num_workers=cfg.CONST.NUM_WORKER,
                                                        pin_memory=True,
@@ -172,10 +173,10 @@ def test_net(cfg,
     for taxonomy_id in test_iou:
         print('%s' % taxonomies[taxonomy_id]['taxonomy_name'].ljust(8), end='\t')
         print('%d' % test_iou[taxonomy_id]['n_samples'], end='\t')
-        if 'baseline' in taxonomies[taxonomy_id]:
-            print('%.4f' % taxonomies[taxonomy_id]['baseline']['%d-view' % cfg.CONST.N_VIEWS_RENDERING], end='\t\t')
-        else:
-            print('N/a', end='\t\t')
+        # if 'baseline' in taxonomies[taxonomy_id]:
+        #     print('%.4f' % taxonomies[taxonomy_id]['baseline']['%d-view' % cfg.CONST.N_VIEWS_RENDERING], end='\t\t')
+        # else:
+        #     print('N/a', end='\t\t')
 
         for ti in test_iou[taxonomy_id]['iou']:
             print('%.4f' % ti, end='\t')
