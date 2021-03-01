@@ -1,7 +1,9 @@
 # MI_P2V
 
 A pixel to voxel 3D generator. Based on Pix2Vox++ (https://arxiv.org/abs/2006.12250).
+
 I improved this model based on (https://arxiv.org/abs/2007.02919).
+
 All relevant information (results): (https://drive.google.com/drive/folders/1YAkheiplXTw39F4UUWsMr54SiWPiZt7I)
 
 ## Models
