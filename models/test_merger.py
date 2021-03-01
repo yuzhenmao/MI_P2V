@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Developed by Haozhe Xie <cshzxie@gmail.com>
+# Developed by Yuzhen Mao
 
 import torch
 import pdb
