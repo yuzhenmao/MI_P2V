@@ -4,6 +4,8 @@ A pixel to voxel 3D generator. Based on Pix2Vox++ (https://arxiv.org/abs/2006.12
 
 I improved this model based on (https://arxiv.org/abs/2007.02919).
 
+See detailed information on (https://docs.google.com/presentation/d/1q819PLNQ2P1rLQKzfLgxbH9fA0L81vdOsMY0d5W4UWE/edit#slide=id.gb9711c9463_0_52)
+
 ![image](https://user-images.githubusercontent.com/57878927/109457980-e32d1e00-7a96-11eb-9728-e6e920f03cfb.png)
 
 
